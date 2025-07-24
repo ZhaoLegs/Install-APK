@@ -129,15 +129,42 @@ main() {
 
         # After a full round, if there are still failures, ask the user to retry
         if [ ${#failed_installs_paths[@]} -gt 0 ]; then
-            echo ""
-            echo "----------------------------------------"
-            echo "本轮有 ${#failed_installs_paths[@]} 个应用安装失败。"
-            echo "----------------------------------------"
+            local should_break_main_loop=false
+            while true; do # Prompt loop
+                echo ""
+                echo "----------------------------------------"
+                echo "本轮有 ${#failed_installs_paths[@]} 个应用安装失败。"
+                echo "----------------------------------------"
+                
+                read -p "输入 1 重试, 输入 2 可输入自定义命令行, 如已安装完毕可直接关闭退出终端; " choice
+                if [[ "$choice" == "1" ]]; then
+                    # Break prompt loop and continue main loop to retry.
+                    break
+                elif [[ "$choice" == "2" ]]; then
+                    # Enter custom command mode.
+                    while true; do
+                        read -p "请输入自定义命令 (或输入 '0' 回车返回上层): " custom_command
+                        if [[ "$custom_command" == "0" ]]; then
+                            break # Break custom command loop to return to prompt loop.
+                        fi
+                        echo "--- 执行自定义命令 ---"
+                        # Execute the command and show output
+                        eval "$custom_command"
+                        echo "--- 命令执行完毕 ---"
+                        echo ""
+                    done
+                    # After custom command loop, continue prompt loop to show prompt again.
+                    continue
+                else
+                    # Exit everything.
+                    echo "好的，将不再重试。"
+                    should_break_main_loop=true
+                    break # Break prompt loop.
+                fi
+            done
             
-            read -p "是否重试安装失败的应用? (输入 y 重试, 其他键退出): " choice
-            if [[ "$choice" != "y" && "$choice" != "Y" ]]; then
-                echo "好的，将不再重试。"
-                break # Exit the while loop if user does not want to retry
+            if $should_break_main_loop; then
+                break # Break main loop.
             fi
         fi
     done
