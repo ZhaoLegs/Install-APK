@@ -160,7 +160,6 @@ main() {
                 continue
             fi
         else
-            APK_DIR="$choice" # This will be Desktop or Downloads path
             echo "将在 '$APK_DIR' 文件夹中搜索 APK 文件..."
             while IFS= read -r -d $'\0'; do
                 all_apks+=("$REPLY")
