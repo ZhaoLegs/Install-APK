@@ -1,4 +1,4 @@
-# Install APK - 版本说明
+# Install APK
 
 ## 简介
 Install APK 是一款 macOS 批量安装 APK 工具，适合开发测试和快速版本迭代。
