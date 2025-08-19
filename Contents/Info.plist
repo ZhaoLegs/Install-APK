@@ -5,12 +5,16 @@
 	<key>CFBundleExecutable</key>
 	<string>InstallAPKs</string>
 	<key>CFBundleIdentifier</key>
-	<string>com.example.InstallAPKs</string>
-	<key>CFBundleName</key>
-	<string>InstallAPKs</string>
-	<key>CFBundlePackageType</key>
-	<string>APPL</string>
-	<key>CFBundleIconFile</key>
-	<string>InstallAPKs</string>
+ 	<string>com.legs.InstallAPK</string>
+ 	<key>CFBundleName</key>
+ 	<string>Install APK</string>
+ 	<key>CFBundlePackageType</key>
+ 	<string>APPL</string>
+ 	<key>CFBundleIconFile</key>
+ 	<string>InstallAPKs</string>
+ 	<key>CFBundleShortVersionString</key>
+ 	<string>1.5.3</string>
+ 	<key>CFBundleVersion</key>
+ 	<string>1.5.3</string>
 </dict>
 </plist>
