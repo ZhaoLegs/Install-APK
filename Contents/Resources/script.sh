@@ -1,8 +1,10 @@
 #!/bin/bash
 
+# App: Install APK
 # 作者：legs
-# 版本：v1.5.3
+# 版本：V1.4
 # 功能：Install APK 是一个终端工具，可快速安装和更新 Android 应用，同时支持系统更新。
+#
 
 # --- 界面颜色定义 ---
 if [[ -t 1 ]]; then
@@ -756,8 +758,8 @@ main() {
                     echo "${tty_bold_green}1. 桌面${tty_reset}"
                     echo "${tty_bold_green}2. 下载${tty_reset}"
                     echo ""
-                    echo -e "${tty_yellow}💡温馨提示：请选择正确的系统镜像文件夹。选择后将在新终端窗口自动操作。${tty_reset}"
-                    read -p "${tty_bold_green}请输入选项 (1-2)，按回车确认；直接回车返回上一级： ${tty_reset}" flash_choice
+                    echo -e "${tty_yellow}💡 温馨提示：请选择正确的系统镜像文件夹。选择后将在新终端窗口自动操作。${tty_reset}"
+                    read -p "${tty_bold_green}请输入选项 (1或2)，按回车确认；直接回车返回上一级： ${tty_reset}" flash_choice
 
                     if [[ -z "$flash_choice" ]]; then
                         break
@@ -1019,41 +1021,22 @@ main() {
             if [ ${#failed_installs_paths[@]} -gt 0 ] && ! $go_to_main_menu; then
                 while true; do
                     echo ""
-                    echo "${tty_yellow}----------------------------------------${tty_reset}"
-                    echo "${tty_yellow}本轮有 ${#failed_installs_paths[@]} 个应用安装失败。${tty_reset}"
-                    echo "${tty_yellow}----------------------------------------${tty_reset}"
+                    echo "${tty_bold_green}本次安装结果：${tty_reset}"
+                    echo "${tty_bold_green}总计尝试安装：${total_to_try} 个${tty_reset}"
+                    echo "${tty_green}安装成功：${#successful_installs[@]} 个${tty_reset}"
+                    echo "${tty_red}安装失败：${#failed_installs_paths[@]} 个${tty_reset}"
+                    echo ""
+                    echo "${tty_bold_green}========================================${tty_reset}"
                     
-                    read -p "${tty_bold_green}输入 1 重试, 输入 2 进入自定义命令模式, 或按其他任意键退出: ${tty_reset}" choice
+                    read -p "${tty_bold_green}输入 0 重试; 直接回车键返回主菜单: ${tty_reset}" choice
                     case "$choice" in
-                        1) 
+                        0) 
                             echo "1秒后重试..."
                             sleep 1
                             break # Break prompt loop to retry
                             ;;
-                        2)
-                            echo "${tty_yellow}⚠️ 警告：自定义命令模式允许您执行任意命令，请谨慎使用。${tty_reset}"
-                            while true; do
-                                read -p "${tty_bold_green}请输入自定义命令 (输入 'exit' 返回): ${tty_reset}" cmd
-                                if [[ "$cmd" == "exit" ]]; then
-                                    break
-                                fi
-                                
-                                # 检查危险命令
-                                if [[ "$cmd" =~ (rm\s+-rf|sudo|format|fdisk|dd\s+if) ]]; then
-                                    echo "${tty_red}⚠️ 检测到潜在危险命令，已阻止执行。${tty_reset}"
-                                    continue
-                                fi
-                                
-                                echo "--- 执行: $cmd ---"
-                                echo "${tty_yellow}提示：长时间运行的命令可能会卡住脚本。按 Ctrl+C 可强制中止。${tty_reset}"
-                                eval "$cmd"
-                                echo "--- 执行完毕 ---"
-                            done
-                            continue # Continue prompt loop
-                            ;;
                         *)
-                            echo "好的，将不再重试。"
-                            should_exit_script=true
+                            go_to_main_menu=true
                             break # Break prompt loop
                             ;;
                     esac
@@ -1062,6 +1045,10 @@ main() {
         done
 
         # --- 总结与收尾 ---
+        if $go_to_main_menu; then
+            continue
+        fi
+        
         if ! $go_to_main_menu; then
             local final_failed_names=()
             for path in "${failed_installs_paths[@]}"; do
@@ -1074,7 +1061,7 @@ main() {
             break # Exit main loop
         fi
 
-        read -p "${tty_bold_green}直接回车可返回上一级菜单：${tty_reset}"
+        read -p "${tty_bold_green}直接回车键返回主菜单：${tty_reset}"
     done
 }
 
