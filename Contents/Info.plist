@@ -11,7 +11,7 @@
  	<key>CFBundlePackageType</key>
  	<string>APPL</string>
  	<key>CFBundleIconFile</key>
- 	<string>InstallAPKs</string>
+ 	<string>InstallAPKs.icns</string>
  	<key>CFBundleShortVersionString</key>
  	<string>1.5.3</string>
  	<key>CFBundleVersion</key>

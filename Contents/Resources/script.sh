@@ -35,9 +35,93 @@ log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> "$LOG_FILE"
 }
 
+# --- 箭头菜单选择函数 ---
+arrow_menu() {
+    local title="$1"
+    shift
+    local options=("$@")
+    local selected=0
+    
+    # 显示菜单标题（只显示一次）
+    echo ""
+    echo "${tty_bold}${tty_green}$title${tty_reset}"
+    echo ""
+    
+    # 隐藏光标以减少闪烁
+    printf '\033[?25l'
+    
+    # 渲染菜单的函数
+    render_menu() {
+        for i in "${!options[@]}"; do
+            printf '\033[2K'  # 清除整行
+            if [ $i -eq $selected ]; then
+                printf "${tty_bold_green}👉🏻 %s${tty_reset}\n" "${options[$i]}"
+            else
+                printf "  ${tty_green}%s${tty_reset}\n" "${options[$i]}"
+            fi
+        done
+        echo ""
+        printf '\033[2K'  # 清除帮助信息行
+        printf "${tty_green}使用 ▲ ▼ 箭头键选择，回车确认${tty_reset}\n"
+        echo ""
+    }
+    
+    # 显示初始菜单
+    render_menu
+    
+    while true; do
+        # 使用bash内置的read功能读取按键
+        local key
+        IFS= read -rsn1 key
+        
+        # 检查是否是ESC序列（箭头键）
+        if [[ $key == $'\x1b' ]]; then
+            IFS= read -rsn2 key
+            case $key in
+                '[A') # 上箭头
+                    ((selected--))
+                    if [ $selected -lt 0 ]; then
+                        selected=$((${#options[@]} - 1))
+                    fi
+                    # 回到菜单开始位置重新渲染
+                    printf '\033[%dA' $((${#options[@]} + 3))
+                    render_menu
+                    ;;
+                '[B') # 下箭头
+                    ((selected++))
+                    if [ $selected -ge ${#options[@]} ]; then
+                        selected=0
+                    fi
+                    # 回到菜单开始位置重新渲染
+                    printf '\033[%dA' $((${#options[@]} + 3))
+                    render_menu
+                    ;;
+            esac
+        else
+            case "$key" in
+                $'\x0a'|$'\x0d'|'') # 回车键
+                    # 显示光标
+                    printf '\033[?25h'
+                    echo ""
+                    return $selected
+                    ;;
+                "q"|"Q") # q键退出
+                    # 显示光标
+                    printf '\033[?25h'
+                    echo ""
+                    return -1
+                    ;;
+            esac
+        fi
+    done
+}
+
 # --- 依赖检查与安装 ---
 check_and_install_dependencies() {
-    echo "${tty_cyan}--- 正在检查环境依赖 ---${tty_reset}"
+    echo "${tty_cyan}────────────────────────────────────────────────────────────────────────────────${tty_reset}"
+    echo "${tty_cyan}正在检查环境依赖${tty_reset}"
+    echo "${tty_cyan}────────────────────────────────────────────────────────────────────────────────${tty_reset}"
+    echo ""
 
     # 1. 检查 Homebrew
     if ! command -v brew &> /dev/null; then
@@ -122,8 +206,7 @@ check_and_install_dependencies() {
                 if [ -d "$build_tools_dir" ]; then
                     local latest_version=$(ls -1 "$build_tools_dir" | sort -V | tail -1)
                     if [ -n "$latest_version" ] && [ -f "$build_tools_dir/$latest_version/aapt" ]; then
-                        echo "${tty_yellow}在 Android SDK 中找到 aapt，创建符号链接...${tty_reset}"
-                        ln -sf "$build_tools_dir/$latest_version/aapt" /usr/local/bin/aapt
+                        echo "${tty_green}✅ 在 Android SDK 中找到 aapt 工具${tty_reset}"
                         aapt_found=true
                         break
                     fi
@@ -147,7 +230,7 @@ check_and_install_dependencies() {
                     
                     # 再次尝试链接 aapt
                     if [ -f "$HOME/Library/Android/sdk/build-tools/33.0.0/aapt" ]; then
-                        ln -sf "$HOME/Library/Android/sdk/build-tools/33.0.0/aapt" /usr/local/bin/aapt
+                        echo "${tty_green}✅ aapt 工具已安装${tty_reset}"
                         aapt_found=true
                     fi
                 fi
@@ -207,8 +290,10 @@ check_and_install_dependencies() {
         echo "${tty_green}✅ GNU Parallel 已安装。${tty_reset}"
     fi
     
-    echo -e "${tty_cyan}--- 环境依赖检查完成 ---${tty_reset}"
     echo ""
+    echo "${tty_cyan}────────────────────────────────────────────────────────────────────────────────${tty_reset}"
+    echo "${tty_cyan}环境依赖检查完成${tty_reset}"
+    echo "${tty_cyan}────────────────────────────────────────────────────────────────────────────────${tty_reset}"
 }
 
 
@@ -238,8 +323,8 @@ parse_error_reason() {
         reason_simplified="缺少共享库：设备缺少应用运行所需的库文件。"
         solution="这通常是系统级问题，可能需要更新设备系统或安装相关库。"
     elif [[ $reason_raw == *"INSTALL_FAILED_UPDATE_INCOMPATIBLE"* ]]; then
-        reason_simplified="签名不兼容：已安装版本的签名与新版本不匹配。"
-        solution="请先卸载设备上的应用，再重新安装新版本。"
+        reason_simplified="签名不兼容（已安装版本与新版本签名不匹配），请先卸载设备上的应用后再安装新版本。"
+        solution=""
     elif [[ $reason_raw == *"INSTALL_FAILED_INVALID_APK"* ]]; then
         reason_simplified="无效的APK文件：文件可能已损坏或格式不正确。"
         solution="重新下载或获取有效的APK文件。"
@@ -318,10 +403,9 @@ parse_error_reason() {
     fi
     
     # 返回格式化的错误信息
+    echo "$reason_simplified"
     if [ -n "$solution" ]; then
-        echo "$reason_simplified 解决方案: $solution"
-    else
-        echo "$reason_simplified"
+        echo "解决方案: $solution"
     fi
     
     log "原始错误: $reason_raw"
@@ -342,7 +426,7 @@ extract_apk_info() {
         return 1
     fi
     
-    echo "${tty_cyan}--- 正在提取 APK 信息: $apk_name ---${tty_reset}"
+    echo "${tty_cyan}正在提取 APK 信息: $apk_name${tty_reset}"
     
     # 提取包名、版本等基本信息
     local package_info=$(aapt dump badging "$apk_path" 2>/dev/null)
@@ -384,24 +468,20 @@ extract_apk_info() {
 # --- 显示动态进度条函数 ---
 show_dynamic_progress() {
     local percent=$1
-    local width=40
+    local width=20
     local completed=$((width * percent / 100))
     local bar=""
     
-    # 构建进度条
+    # 构建进度条（长度加倍）
     for ((j=0; j<completed; j++)); do
-        bar+="="
+        bar+="••"  # 每个单位用两个点表示
     done
-    if [ $completed -lt $width ]; then
-        bar+=">"
-        completed=$((completed + 1))
-    fi
     for ((j=completed; j<width; j++)); do
-        bar+=" "
+        bar+="··"  # 每个空位也用两个点表示
     done
     
-    # 显示进度条（不换行，覆盖上一次显示）
-    printf "\r${tty_cyan}安装进度: [${tty_green}%-${width}s${tty_cyan}] %3d%%${tty_reset}" "$bar" "$percent"
+    # 显示进度条（不换行，覆盖上一次显示），改为青色
+    printf "\r${tty_cyan}安装进度: ${tty_cyan}%s${tty_cyan} %3d%%${tty_reset}" "$bar" "$percent"
 }
 
 # --- 获取设备信息函数 ---
@@ -469,10 +549,7 @@ select_device() {
     devices_output=$(adb devices | grep -v "List of devices attached" | grep -v "^$")
     
     if [ -z "$devices_output" ]; then
-        echo "${tty_red}⚠️  未检测到任何 Android 设备。${tty_reset}"
-        echo "${tty_red}1. 手机已通过 USB 连接电脑
-2. 已开启“开发者模式”和“USB 调试”
-3. 已在手机上允许本电脑进行调试${tty_reset}"
+        echo "${tty_red}未检测到任何 Android 设备，请确认手机已通过 USB 连接电脑、已开启"开发者模式"和"USB 调试"，并在手机上允许本电脑调试。${tty_reset}"
         echo ""
         return 1
     fi
@@ -521,28 +598,29 @@ select_device() {
     fi
     
     # 多个可用设备时，让用户选择
-    echo "${tty_bold_green}检测到多个可用设备，请选择一个：${tty_reset}"
+    local device_options=()
     for i in "${!available_devices[@]}"; do
         local device_id="${available_devices[$i]}"
         local device_model=$(adb -s "$device_id" shell getprop ro.product.model 2>/dev/null | tr -d '\r')
         if [ -z "$device_model" ]; then
             device_model="未知设备"
         fi
-        echo "${tty_bold_green}$((i+1)). $device_model ($device_id)${tty_reset}"
+        # 截断过长的设备ID
+        local short_id="$device_id"
+        if [ ${#device_id} -gt 20 ]; then
+            short_id="${device_id:0:17}..."
+        fi
+        device_options+=("$device_model ($short_id)")
     done
     
-    local valid_selection=false
-    while ! $valid_selection; do
-        read -p "${tty_bold_green}请输入设备编号 (1-${#available_devices[@]}): ${tty_reset}" device_choice
-        
-        # 验证输入
-        if [[ "$device_choice" =~ ^[0-9]+$ ]] && [ "$device_choice" -ge 1 ] && [ "$device_choice" -le "${#available_devices[@]}" ]; then
-            SELECTED_DEVICE="${available_devices[$((device_choice-1))]}"
-            valid_selection=true
-        else
-            echo "${tty_red}无效的选择，请重新输入。${tty_reset}"
-        fi
-    done
+    arrow_menu "📱 设备选择菜单" "${device_options[@]}"
+    local device_choice=$?
+    
+    if [ $device_choice -eq -1 ]; then
+        return 1
+    fi
+    
+    SELECTED_DEVICE="${available_devices[$device_choice]}"
     
     echo "${tty_green}已选择设备: $SELECTED_DEVICE${tty_reset}"
     echo ""
@@ -561,7 +639,7 @@ install_single_apk() {
     # 提取APK信息（如果可用）
     extract_apk_info "$apk_path" > /dev/null 2>&1
     
-    echo "${tty_cyan}--- 正在安装: $apk_name ---${tty_reset}"
+    echo "${tty_cyan}正在安装: $apk_name${tty_reset}"
     
     # 初始化进度条
     show_dynamic_progress 0
@@ -595,13 +673,20 @@ install_single_apk() {
     echo ""  # 换行
     
     if [ $install_status -eq 0 ]; then
-        echo "${tty_green}✅ 安装成功: $apk_name${tty_reset}"
+        echo "${tty_green}安装成功: $apk_name${tty_reset}"
         return 0
     else
-        local reason
-        reason=$(parse_error_reason "$install_output")
-        echo "${tty_red}❌ 安装失败: $apk_name${tty_reset}"
-        echo "   ${tty_yellow}原因: $reason${tty_reset}"
+        local reason_output
+        reason_output=$(parse_error_reason "$install_output")
+        echo "${tty_red}安装失败: $apk_name${tty_reset}"
+        # 分别显示原因和解决方案
+        while IFS=$'\n' read -r line; do
+            if [[ $line == 解决方案:* ]]; then
+                echo "${tty_yellow}$line${tty_reset}"
+            else
+                echo "${tty_yellow}原因: $line${tty_reset}"
+            fi
+        done <<< "$reason_output"
         return 1
     fi
 }
@@ -623,9 +708,9 @@ show_summary() {
     fi
 
     echo ""
-
+    
     echo ""
-    echo -e "${tty_bold_green}本次安装结果：\n总计尝试安装：$total_count 个\n安装成功：${#success_ref[@]} 个${tty_reset}"
+    echo -e "${tty_bold_green}本次安装结果：${tty_reset}\n${tty_bold_green}总计尝试安装：$total_count 个\n安装成功：${#success_ref[@]} 个${tty_reset}"
     if [ ${#failure_ref[@]} -gt 0 ]; then
         echo -e "${tty_red}安装失败：${#failure_ref[@]} 个${tty_reset}"
     fi
@@ -644,7 +729,7 @@ show_summary() {
     if [ ${#failure_ref[@]} -gt 0 ]; then
         echo "${tty_yellow}详细错误日志已保存到: $LOG_FILE${tty_reset}"
     fi
-    echo "${tty_cyan}========================================${tty_reset}"
+    echo "${tty_cyan}────────────────────────────────────────────────────────────────────────────────${tty_reset}"
 }
 
 # --- 并行安装函数（更新为使用选定设备） ---
@@ -665,14 +750,14 @@ parallel_install_apks() {
     > "$temp_failure_file"
     > "$temp_reasons_file"
     
-    echo "${tty_cyan}--- 开始安装 $total_count 个 APK 文件 ---${tty_reset}"
+    echo "${tty_cyan}开始安装 $total_count 个 APK 文件${tty_reset}"
     
     # 简化安装过程，不使用GNU Parallel
     local i=1
     for apk_path in "${apks_to_install[@]}"; do
         local apk_name=$(basename "$apk_path")
         echo ""
-        echo "${tty_cyan}--- [ $i / $total_count ] 正在处理: $apk_name ---${tty_reset}"
+        echo "${tty_cyan}[ $i / $total_count ] 正在处理: $apk_name${tty_reset}"
         
         # 使用改进的安装函数
         if install_single_apk "$apk_path" "$install_params" "$i" "$total_count"; then
@@ -699,27 +784,43 @@ main() {
         local show_return_option=false  # 是否显示返回选项
 
         # --- 主菜单 ---
-         echo -e "${tty_bold_green}请选择操作:${tty_reset}"
-           echo -e "${tty_bold_green}1. 💻 从桌面安装APK（$HOME/Desktop）${tty_reset}" 
-           echo -e "${tty_bold_green}2. 📥 从下载文件夹安装APK（$HOME/Downloads）${tty_reset}" 
-           echo -e "${tty_bold_green}3. 📁 自定义位置安装APK${tty_reset}" 
-           echo -e "${tty_bold_green}4. 🔧 刷写系统镜像（高级功能）${tty_reset}"
-         echo ""
-         echo -e "${tty_yellow}💡 温馨提示：为了访问您的APK文件，系统可能会请求文件访问权限，请选择“允许”以便正常使用${tty_reset}" 
-         read -p "${tty_bold_green}请输入选项 (1-4)，然后回车: ${tty_reset}" choice
+        local main_menu_options=(
+            "💻 从桌面安装APK"
+            "📥 从下载文件夹安装APK"
+            "📁 自定义位置安装APK"
+            "🔧 刷写系统镜像"
+        )
+        
+        arrow_menu "${tty_bold}${tty_green}Install APK${tty_reset}" "${main_menu_options[@]}"
+        local choice=$?
+        
+        if [ $choice -eq -1 ]; then
+            continue
+        fi
+        
+        # 将选择转换为原来的数字格式
+        choice=$((choice + 1))
 
         local APK_DIR=""
         local custom_path=""
+        local menu_title=""
         case "$choice" in
-            1) APK_DIR="$HOME/Desktop" ;;
-            2) APK_DIR="$HOME/Downloads" ;;
+            1) 
+                APK_DIR="$HOME/Desktop"
+                menu_title="${tty_bold}${tty_green}💻 从桌面安装APK${tty_reset}"
+                ;;
+            2) 
+                APK_DIR="$HOME/Downloads"
+                menu_title="${tty_bold}${tty_green}📥 从下载文件夹安装APK${tty_reset}"
+                ;;
             3) 
-                read -p "${tty_bold_green}请输入自定义目录路径（可直接拖入 APK 文件）；直接回车返回上一级菜单： ${tty_reset}" custom_path
+                read -p "${tty_green}请输入自定义目录路径（可直接拖入 APK 文件）；直接回车返回上一级菜单： ${tty_reset}" custom_path
                 if [[ -z "$custom_path" ]]; then
                     continue
                 fi
                 # 清理用户可能拖拽进来的路径（去除引号和多余空格）
                 custom_path=$(echo "$custom_path" | sed "s/'//g" | xargs)
+                menu_title="📁 自定义位置安装APK"
                 ;;
             4)
                  echo ""
@@ -729,7 +830,7 @@ main() {
                  # 检查设备连接
                  if ! adb get-state 1>/dev/null 2>&1 && ! fastboot devices 2>&1 | grep -q "fastboot"; then
                      echo -e "${tty_red}⚠️  错误: 未检测到任何设备。请连接您的设备并启用 USB 调试或进入 Bootloader 模式后重试。${tty_reset}"
-                     echo "${tty_bold_green}将在 3 秒后自动返回主菜单...${tty_reset}"
+                     echo "${tty_green}将在 3 秒后自动返回主菜单...${tty_reset}"
                      sleep 3
                      continue
                  fi
@@ -746,35 +847,29 @@ main() {
                      echo "${tty_green}✅ 设备已处于 Bootloader 模式。${tty_reset}"
                  fi
 
-                 echo "${tty_red}⚠️  手机进入 Bootloader 后，请等待设备屏幕亮起并出现 START 后，再继续刷机操作。${tty_reset}"
-                 echo "${tty_red}⚠️  注意：刷机功能尚未实现，请勿进行后续步骤。${tty_reset}"
-
                  if [ "$wait_for_bootloader" = true ]; then
                     : # Do nothing and continue to the menu
                  fi
                     echo ""
                 while true; do
-                    echo "${tty_bold_green}请选择安装来源：${tty_reset}"
-                    echo "${tty_bold_green}1. 桌面${tty_reset}"
-                    echo "${tty_bold_green}2. 下载${tty_reset}"
-                    echo ""
-                    echo -e "${tty_yellow}💡 温馨提示：请选择正确的系统镜像文件夹。选择后将在新终端窗口自动操作。${tty_reset}"
-                    read -p "${tty_bold_green}请输入选项 (1或2)，按回车确认；直接回车返回上一级： ${tty_reset}" flash_choice
-
-                    if [[ -z "$flash_choice" ]]; then
+                    local flash_menu_options=(
+                        "💻 桌面"
+                        "📥 下载"
+                        "返回上一级"
+                    )
+                    
+                    arrow_menu "🔧 刷写系统镜像" "${flash_menu_options[@]}"
+                    local flash_choice=$?
+                    
+                    if [ $flash_choice -eq -1 ] || [ $flash_choice -eq 2 ]; then
                         break
                     fi
 
                     local target_dir=""
-                    if [[ "$flash_choice" == "1" ]]; then
+                    if [[ "$flash_choice" == "0" ]]; then
                         target_dir="$HOME/Desktop"
-                    elif [[ "$flash_choice" == "2" ]]; then
+                    elif [[ "$flash_choice" == "1" ]]; then
                         target_dir="$HOME/Downloads"
-                    else
-                        echo "${tty_red}无效的选项。${tty_reset}"
-                        echo "${tty_bold_green}将在 3 秒后自动返回主菜单...${tty_reset}"
-                        sleep 3
-                        break
                     fi
 
                     if [ -n "$target_dir" ]; then
@@ -789,36 +884,43 @@ main() {
 
                         if [ ${#dirs[@]} -eq 0 ]; then
                             echo "${tty_yellow}在 '$target_dir' 中未找到任何名为 \"download_images\" 的文件夹。${tty_reset}"
-                            echo "${tty_bold_green}将在 3 秒后自动返回主菜单...${tty_reset}"
+                            echo "${tty_green}将在 3 秒后自动返回主菜单...${tty_reset}"
                             sleep 3
                             continue
                         else
                             local exit_flash_menu=false
                             while true; do
-                                echo -e "\r${tty_bold_green}请选择包含系统镜像的文件夹:${tty_reset}"
+                                local folder_options=()
                                 for i in "${!dirs[@]}"; do
                                     local dir_path="${dirs[$i]}"
                                     local parent_dir_name=$(basename "$(dirname "$dir_path")")
-                                    echo "${tty_bold_green}$((i+1)). $parent_dir_name${tty_reset}"
+                                    folder_options+=("📁 $parent_dir_name")
                                 done
-                                echo ""
+                                folder_options+=("返回上一级")
                                 
-                                read -p "${tty_bold_green}请输入选项，然后按回车。 直接回车可返回上一级菜单: ${tty_reset}" choice
+                                arrow_menu "📁 系统镜像文件夹选择" "${folder_options[@]}"
+                                local choice=$?
                                 
-                                if [[ -z "$choice" ]]; then
+                                if [ $choice -eq -1 ] || [ $choice -eq $((${#folder_options[@]} - 1)) ]; then
                                     break
                                 fi
 
-                                if [[ "$choice" =~ ^[1-9][0-9]*$ ]] && [ "$choice" -le "${#dirs[@]}" ]; then
-                                    selected_dir="${dirs[$((choice-1))]}"
+                                if [[ "$choice" -ge 0 ]] && [ "$choice" -lt "${#dirs[@]}" ]; then
+                                    selected_dir="${dirs[$choice]}"
+                                    clear
                                     echo ""
-                                    echo "${tty_cyan}在新终端窗口中打开文件夹并执行刷机脚本...${tty_reset}"
+                                    echo "${tty_green}在新终端窗口中打开文件夹并执行刷机脚本...${tty_reset}"
+                                    # Get current terminal window ID before opening new one
+                                    current_window_id=$(osascript -e "tell application \"Terminal\" to return id of front window" 2>/dev/null)
+                                    # Open new terminal window with flashing script
                                     osascript -e "tell application \"Terminal\" to do script \"cd '$selected_dir' && python3 fastboot-flash.py\"" > /dev/null
+                                    # Close the original terminal window (not the new one) without confirmation
+                                    if [ -n "$current_window_id" ]; then
+                                        osascript -e "tell application \"Terminal\" to close window id $current_window_id saving no" > /dev/null 2>&1
+                                    fi
                                     echo ""
                                     exit_flash_menu=true
                                     break
-                                else
-                                    echo "${tty_red}无效的选项: '$choice'${tty_reset}"
                                 fi
                             done
                             if ${exit_flash_menu}; then
@@ -832,7 +934,7 @@ main() {
 
             *)
                 echo "${tty_red}无效的选项。${tty_reset}"
-                echo "${tty_bold_green}将在 3 秒后自动返回主菜单...${tty_reset}"
+                echo "${tty_green}将在 3 秒后自动返回主菜单...${tty_reset}"
                 sleep 3
                 continue
                 ;;
@@ -880,7 +982,7 @@ main() {
 
         # 选择设备
         if ! select_device; then
-            echo "${tty_bold_green}将在 3 秒后自动返回主菜单...${tty_reset}"
+            echo "${tty_green}将在 3 秒后自动返回主菜单...${tty_reset}"
             sleep 3
             continue
         fi
@@ -890,7 +992,7 @@ main() {
                 echo ""
                 echo "${tty_yellow}⚠️  未在 '$APK_DIR' 中找到任何 .apk 文件。${tty_reset}"
             fi
-            echo "${tty_bold_green}将在 3 秒后自动返回主菜单...${tty_reset}"
+            echo "${tty_green}将在 3 秒后自动返回主菜单...${tty_reset}"
             sleep 3
             continue
         fi
@@ -903,49 +1005,40 @@ main() {
             apks_to_install=("${all_apks[@]}")
         elif [ ${#all_apks[@]} -gt 1 ]; then
             while true; do
-                echo ""
-                echo -e "${tty_bold_green}请选择要安装的应用：${tty_reset}"
-                printf "${tty_bold_green}%s %s${tty_reset}\n" "0." "安装全部应用"
-                local i=1
+                local apk_options=("安装全部应用")
                 for apk_path in "${all_apks[@]}"; do
                     local apk_name
                     apk_name=$(basename "$apk_path")
-                    # 修改格式，确保序号和文件名之间有空格
-                    printf "${tty_bold_green}%s %s${tty_reset}\n" "$i." "$apk_name"
-                    i=$((i+1))
+                    # 截断过长的文件名，保持与分隔线长度一致(80字符)
+                    if [ ${#apk_name} -gt 80 ]; then
+                        # 截断并保持.apk后缀
+                        if [[ $apk_name == *.apk ]]; then
+                            apk_name="${apk_name:0:76}...apk"
+                        else
+                            apk_name="${apk_name:0:77}..."
+                        fi
+                    fi
+                    apk_options+=("$apk_name")
                 done
-                echo ""
-
-                read -p "${tty_bold_green}请输入选项（可输入多个数字，用空格隔开），按回车确认；直接回车返回上一级： ${tty_reset}" apk_choice
+                apk_options+=("返回上一级")
+                
+                arrow_menu "$menu_title" "${apk_options[@]}"
+                local apk_choice=$?
                 
                 apks_to_install=() # Reset choices
-                if [[ -z "$apk_choice" ]]; then
+                if [ $apk_choice -eq -1 ] || [ $apk_choice -eq $((${#apk_options[@]} - 1)) ]; then
                     break # Exit selection loop, will then hit the continue below
                 fi
                 
                 if [[ "$apk_choice" == "0" ]]; then
                     apks_to_install=("${all_apks[@]}")
                 else
-                    # 使用正则表达式来分割字符串，以支持一个或多个空格
-                    IFS=' ' read -r -a choices <<< "$apk_choice"
-                    for choice in "${choices[@]}"; do
-                        # 验证输入是否为纯数字且在有效范围内
-                        if [[ "$choice" =~ ^[1-9][0-9]*$ ]] && [ "$choice" -le "${#all_apks[@]}" ]; then
-                            apks_to_install+=("${all_apks[$((choice-1))]}")
-                        elif [[ -n "$choice" ]]; then # 忽略空的choice
-                            echo "${tty_red}无效的选项: '$choice' 将被忽略。${tty_reset}"
-                        fi
-                    done
+                    # 单选模式 - 选择单个APK
+                    apks_to_install=("${all_apks[$((apk_choice-1))]}")
                 fi
 
                 if [ ${#apks_to_install[@]} -gt 0 ]; then
                     break # Valid APKs selected, exit loop.
-                else
-                    # This 'else' block will be reached if input was not empty, but resulted in no valid selections.
-                    echo ""
-                    echo "${tty_yellow}⚠️  没有选择任何有效的 APK 文件。${tty_reset}"
-                    sleep 2
-                    # The while loop will now repeat
                 fi
             done
         fi
@@ -962,13 +1055,10 @@ main() {
         else
             echo "${tty_green}已选择 ${#apks_to_install[@]} 个APK文件进行安装。${tty_reset}"
         fi
-        echo ""
 
         # --- 安装选项 ---
         # 使用最佳安装参数，不再询问用户
         local install_params="-t -r -d -g"
-        echo "${tty_yellow}ℹ️  使用最佳安装参数，自动处理版本冲突和权限。${tty_reset}"
-        echo ""
 
         # --- 安装循环 ---
         local successful_installs=()
@@ -983,7 +1073,7 @@ main() {
             local total_to_try=${#apks_to_try[@]}
             
             # 简化并行安装逻辑
-            echo "${tty_yellow}ℹ️  开始批量安装 $total_to_try 个APK文件...${tty_reset}"
+            echo "${tty_yellow}💡 开始批量安装 $total_to_try 个APK文件...${tty_reset}"
                 echo ""
             
             # 调用安装函数
@@ -1020,18 +1110,23 @@ main() {
 
             if [ ${#failed_installs_paths[@]} -gt 0 ] && ! $go_to_main_menu; then
                 while true; do
+                    # 先显示统计信息
+                    clear
                     echo ""
                     echo "${tty_bold_green}本次安装结果：${tty_reset}"
-                    echo "${tty_bold_green}总计尝试安装：${total_to_try} 个${tty_reset}"
-                    echo "${tty_green}安装成功：${#successful_installs[@]} 个${tty_reset}"
-                    echo "${tty_red}安装失败：${#failed_installs_paths[@]} 个${tty_reset}"
+                    printf "${tty_bold_green}总计尝试安装：%d 个${tty_reset}\n" "${total_to_try}"
+                    printf "${tty_bold_green}安装成功：%d 个${tty_reset}\n" "${#successful_installs[@]}"
+                    if [ ${#failed_installs_paths[@]} -gt 0 ]; then
+                        printf "${tty_red}安装失败：%d 个${tty_reset}\n" "${#failed_installs_paths[@]}"
+                    fi
                     echo ""
-                    echo "${tty_bold_green}========================================${tty_reset}"
+                    local result_options=("重试失败的安装" "返回主菜单")
+                    arrow_menu "继续操作" "${result_options[@]}"
+                    local choice=$?
                     
-                    read -p "${tty_bold_green}输入 0 重试; 直接回车键返回主菜单: ${tty_reset}" choice
                     case "$choice" in
                         0) 
-                            echo "1秒后重试..."
+                            echo "${tty_cyan}1秒后重试...${tty_reset}"
                             sleep 1
                             break # Break prompt loop to retry
                             ;;
