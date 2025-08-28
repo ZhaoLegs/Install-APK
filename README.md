@@ -1,4 +1,4 @@
-# Install APK (macOS)
+# Install APK
 
 **作者：** legs
 **版本：** V1.5
