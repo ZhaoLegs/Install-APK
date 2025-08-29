@@ -1,0 +1,16 @@
+#!/bin/bash
+DIR=$(cd "$(dirname "$0")"; pwd)
+
+# 关闭终端的历史保存功能，避免显示 Saving session 信息
+export HISTFILE=/dev/null
+export HISTSIZE=0
+
+# 使用 AppleScript 打开终端并隐藏命令行，直接执行脚本
+osascript << EOF
+tell application "Terminal"
+    do script "export HISTFILE=/dev/null; export HISTSIZE=0; clear; '$DIR/../Resources/script.sh'"
+    set custom title of front window to "Install APK"
+    -- 隐藏标题栏中的路径信息
+    set the contents of the tab of front window to ""
+end tell
+EOF

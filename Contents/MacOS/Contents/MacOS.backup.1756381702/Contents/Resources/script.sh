@@ -40,7 +40,7 @@ mkdir -p "$TEMP_DIR"
 SELECTED_DEVICE=""  # 选中的设备序列号
 
 # 当前版本号
-CURRENT_VERSION="1.0"
+CURRENT_VERSION="1.6.0"
 # 更新检查URL
 UPDATE_CHECK_URL="https://api.github.com/repos/ZhaoLegs/Install-APK/releases/latest"
 # 本地配置目录
@@ -69,7 +69,7 @@ check_for_updates() {
         local time_diff=$((current_time - last_check))
         # 24小时 = 86400秒
         if [ $time_diff -lt 86400 ]; then
-            return 0  # 静默跳过，不显示任何信息
+            return 0
         fi
     fi
     
@@ -77,7 +77,9 @@ check_for_updates() {
     
     # 检查网络连接
     if ! curl -s --max-time 5 https://www.google.com > /dev/null; then
-        echo "${tty_yellow}网络连接失败，无法检查更新${tty_reset}"
+        if [ "$force_check" == "true" ]; then
+            echo "${tty_yellow}网络连接失败，无法检查更新${tty_reset}"
+        fi
         return 1
     fi
     
@@ -161,15 +163,16 @@ download_and_install_update() {
     
     echo "${tty_green}正在下载更新...${tty_reset}"
     
-    # 简单的点状进度指示
+    # 显示绿色进度条动画
     (
         while true; do
-            printf "\r${tty_green}下载中"
-            for i in {1..3}; do
-                sleep 0.3
-                printf "."
+            for i in {0..20}; do
+                printf "\r${tty_green}下载进度: "
+                for ((j=0; j<i; j++)); do printf "█"; done
+                for ((j=i; j<20; j++)); do printf "░"; done
+                printf " %d%%${tty_reset}" $((i*5))
+                sleep 0.1
             done
-            printf "   "
         done
     ) &
     local progress_pid=$!
@@ -179,7 +182,7 @@ download_and_install_update() {
         # 停止进度条动画
         kill $progress_pid 2>/dev/null
         wait $progress_pid 2>/dev/null
-        printf "\r${tty_green}下载完成                    ${tty_reset}"
+        printf "\r${tty_green}下载进度: ████████████████████ 100%%${tty_reset}"
         echo ""
         echo "${tty_green}✅ 下载完成${tty_reset}"
         
@@ -194,7 +197,6 @@ download_and_install_update() {
         # 停止进度条动画
         kill $progress_pid 2>/dev/null
         wait $progress_pid 2>/dev/null
-        printf "\r${tty_red}下载失败                    ${tty_reset}"
         echo ""
         echo "${tty_red}❌ 下载失败，请检查网络连接${tty_reset}"
         return 1
@@ -236,9 +238,8 @@ install_update() {
             local backup_path="${current_app_path}.backup.$(date +%s)"
             cp -R "$current_app_path" "$backup_path" 2>/dev/null
             
-            # 修复权限并复制新版本
-            chmod -R u+w "$current_app_path" 2>/dev/null
-            if cp -R "$actual_mount_point/Install APK.app/Contents"/* "$current_app_path/Contents/" 2>/dev/null; then
+            # 复制新版本
+            if cp -R "$actual_mount_point/Install APK.app"/* "$current_app_path/" 2>/dev/null; then
                 echo "${tty_green}✅ 更新安装成功${tty_reset}"
                 
                 # 卸载DMG
@@ -247,8 +248,14 @@ install_update() {
                 # 清理下载文件
                 rm -f "$dmg_file"
                 
-                # 直接重启应用并关闭窗口，无提示
+                echo ""
+                echo "${tty_bold}${tty_green}🎉 更新完成！${tty_reset}"
+                
+                # 自动重启应用，无需等待
                 open "$current_app_path" 2>/dev/null
+                
+                # 1秒后自动关闭当前窗口
+                sleep 1
                 osascript -e 'tell application "Terminal" to close first window' 2>/dev/null
                 exit 0
                 
@@ -1411,8 +1418,7 @@ main() {
             break # Exit main loop
         fi
 
-        echo "${tty_bold_green}3秒后返回主菜单...${tty_reset}"
-        sleep 3
+        read -p "${tty_bold_green}直接回车键返回主菜单：${tty_reset}"
     done
 }
 
@@ -1424,10 +1430,9 @@ rm -rf "$TEMP_DIR"
 
 echo ""
 echo "感谢使用！脚本执行完毕。"
-
-# 自动延迟2秒后退出，无需用户交互
-sleep 2
+read -p "${tty_bold_green}按回车键退出终端...${tty_reset}"
 
 # 清屏并自动关闭
 clear
+osascript -e 'tell application "Terminal" to close first window' 2>/dev/null
 exit 0

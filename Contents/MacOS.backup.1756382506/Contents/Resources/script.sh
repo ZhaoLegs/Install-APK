@@ -236,9 +236,8 @@ install_update() {
             local backup_path="${current_app_path}.backup.$(date +%s)"
             cp -R "$current_app_path" "$backup_path" 2>/dev/null
             
-            # 修复权限并复制新版本
-            chmod -R u+w "$current_app_path" 2>/dev/null
-            if cp -R "$actual_mount_point/Install APK.app/Contents"/* "$current_app_path/Contents/" 2>/dev/null; then
+            # 复制新版本
+            if cp -R "$actual_mount_point/Install APK.app"/* "$current_app_path/" 2>/dev/null; then
                 echo "${tty_green}✅ 更新安装成功${tty_reset}"
                 
                 # 卸载DMG
@@ -1411,8 +1410,7 @@ main() {
             break # Exit main loop
         fi
 
-        echo "${tty_bold_green}3秒后返回主菜单...${tty_reset}"
-        sleep 3
+        read -p "${tty_bold_green}直接回车键返回主菜单：${tty_reset}"
     done
 }
 
@@ -1424,10 +1422,9 @@ rm -rf "$TEMP_DIR"
 
 echo ""
 echo "感谢使用！脚本执行完毕。"
-
-# 自动延迟2秒后退出，无需用户交互
-sleep 2
+read -p "${tty_bold_green}按回车键退出终端...${tty_reset}"
 
 # 清屏并自动关闭
 clear
+osascript -e 'tell application "Terminal" to close first window' 2>/dev/null
 exit 0
