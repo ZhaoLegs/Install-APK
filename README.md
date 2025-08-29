@@ -1,67 +1,41 @@
-# Install APK v1.6
+# Install APK
 
-一个用于在 macOS 上安装和管理 APK 文件的工具。
+**作者：** legs
+**版本：** V1.6
 
-## 🚀 功能特点
+## 简介
 
-- 简单易用的 macOS 应用程序
-- 专业的 DMG 安装包
-- 优化的用户界面布局
-- 自动化打包脚本
+`Install APK` 是一个为 macOS 设计的终端工具，旨在简化 Android 应用的安装与更新流程，并提供系统更新支持。
 
-## 📦 下载安装
+## 使用方法
 
-### 下载方式
-1. 从 [Releases](https://github.com/YOUR_USERNAME/install-apk-macos/releases) 页面下载最新版本的 DMG 文件
-2. 双击 DMG 文件打开安装界面
-3. 将 Install APK.app 拖拽到 Applications 文件夹
+1.  **下载**: 从以下地址下载 `InstallAPK.zip` 文件。
+    *   [https://github.com/ZhaoLegs/Install-APK/releases](https://github.com/ZhaoLegs/Install-APK/releases)
+2.  **解压**: 双击解压 `InstallAPK.zip`，得到 `Install APK.app`。
+3.  **运行**: 双击 `Install APK.app` 启动工具。
 
-### 系统要求
-- macOS 10.12 或更高版本
-- 64位处理器
+## 常见问题排查 (Troubleshooting)
 
-## 🛠️ 开发者信息
+**问题：打开时提示"文件已损坏"或"无法打开，因为来自未经验证的开发者"。**
 
-### 项目结构
-```
-├── Install APK.app/          # 主应用程序
-├── create_dmg.sh            # DMG 打包脚本
-├── create_custom_background.py # 自定义背景生成脚本
-├── DMG_Background_Guide.md  # DMG 背景设置指南
-└── 历史备份/                # 历史版本备份
-```
+这是 macOS 的安全机制 (Gatekeeper) 导致的。您有两种方式可以解决：
 
-### 打包说明
-本项目使用自定义的 DMG 打包脚本，具有以下特点：
-- 窗口尺寸：600x400 像素
-- 左侧显示应用图标，右侧显示 Applications 文件夹
-- 图标完美居中对齐
-- 专业的安装界面
+**方法一：通过终端命令 (推荐)**
 
-### 构建 DMG
-```bash
-# 运行打包脚本
-./create_dmg.sh
-```
+1.  打开"终端" (Terminal) 应用。
+2.  输入以下命令，注意命令和路径之间的空格：
+    ```bash
+    sudo xattr -r -d com.apple.quarantine 
+    ```
+3.  将 `Install APK.app` 文件拖入终端窗口，会自动填充其完整路径。
+4.  按下回车，输入您的电脑密码 (输入时不可见)，再次回车即可。
 
-## 📝 更新日志
+**方法二：通过系统设置**
 
-### v1.6.0
-- 优化 DMG 窗口布局
-- 更新窗口尺寸为 600x400 像素
-- 改进图标位置算法
-- 增强打包脚本稳定性
+1.  首次尝试打开应用失败后，进入"系统设置"。
+2.  前往"隐私与安全性"面板。
+3.  向下滚动，您会看到一条关于"Install APK.app"被阻止的提示。
+4.  点击"仍要打开"按钮，并根据提示输入密码。
 
-## 📄 许可证
-
-[在此添加您的许可证信息]
-
-## 🤝 贡献
-
-欢迎提交 Issue 和 Pull Request！
-
-## 📞 联系方式
-
-如有问题，请通过以下方式联系：
-- GitHub Issues: [项目 Issues 页面]
-- Email: [您的邮箱]
+---
+感谢使用！
