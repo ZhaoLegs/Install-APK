@@ -1,0 +1,5 @@
+#!/bin/bash
+DIR=$(cd "$(dirname "$0")"; pwd)
+
+# 使用osascript启动Terminal并执行脚本
+osascript -e "tell application \"Terminal\" to do script \"bash '$DIR/../Resources/script.sh'\""
